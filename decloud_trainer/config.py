@@ -160,6 +160,7 @@ class Config:
     default_epochs: int = 1
     default_batch_size: int = 32
     default_learning_rate: float = 0.001
+    default_max_batches: int = 0
     
     # Reward filters (global)
     min_reward: float = 0.0
@@ -170,7 +171,37 @@ class Config:
     auto_train: bool = True
     auto_claim: bool = True
     poll_interval: int = 5
-    
+    @property
+    def batch_size(self):
+        return self.default_batch_size
+    @batch_size.setter
+    def batch_size(self, value):
+        self.default_batch_size = value
+
+    @property
+    def epochs(self):
+        return self.default_epochs
+
+    @epochs.setter
+    def epochs(self, value):
+        self.default_epochs = value
+
+    @property
+    def learning_rate(self):
+        return self.default_learning_rate
+
+    @learning_rate.setter
+    def learning_rate(self, value):
+        self.default_learning_rate = value
+
+    @property
+    def max_batches(self):
+        return self.default_max_batches
+
+    @max_batches.setter
+    def max_batches(self, value):
+        self.default_max_batches = value
+
     def __post_init__(self):
         self.data_dir = os.path.expanduser(self.data_dir)
         os.makedirs(self.data_dir, exist_ok=True)
@@ -180,6 +211,7 @@ class Config:
         
         if not self.idl_path:
             self.idl_path = self._find_idl()
+        self.idl_path = self.idl_path.replace("\\", "/")
         
         self.pinata_api_key = self.pinata_api_key or os.getenv("PINATA_API_KEY")
         self.pinata_secret_key = self.pinata_secret_key or os.getenv("PINATA_SECRET_KEY")
