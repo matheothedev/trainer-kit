@@ -419,10 +419,10 @@ def cmd_setup(args):
             config.keypair_path = None
             print(f"   ✓ Saved: {pk[:8]}...{pk[-4:]}")
     
-    # 1. Datasets
-    print("\n1️⃣  Which datasets do you want to train?")
-    print("   Leave empty for ALL, or enter comma-separated list")
-    print("   Available: cifar10, cifar100, mnist, fashionmnist, imdb, sst2, agnews")
+    # 1. Datasets to ACCEPT
+    print("\n1️⃣  Which datasets do you want to ACCEPT?")
+    print("   Leave empty to accept ALL rounds")
+    print("   Or enter comma-separated list (e.g. cifar10,mnist,imdb)")
     datasets_input = input("   > ").strip()
     
     if datasets_input:
@@ -430,28 +430,42 @@ def cmd_setup(args):
     else:
         config.datasets = []
     
-    # 2. Rewards
-    print("\n2️⃣  Minimum reward (SOL)?")
+    # 2. Your LOCAL dataset to train on
+    print("\n2️⃣  Your LOCAL dataset to train on?")
+    print("   This is YOUR data that you'll use for training")
+    print("   Available: cifar10, cifar100, mnist, fashionmnist")
+    print("   Leave empty to use same as creator requested")
+    train_dataset = input("   > ").strip().lower()
+    
+    if train_dataset:
+        config.train_dataset = train_dataset
+        print(f"   ✓ Will train on: {train_dataset}")
+    else:
+        config.train_dataset = None
+        print("   ✓ Will use creator's dataset")
+    
+    # 3. Rewards
+    print("\n3️⃣  Minimum reward (SOL)?")
     print("   Enter 0 for no minimum")
     min_reward = input("   > ").strip()
     config.min_reward = float(min_reward) if min_reward else 0.0
     
-    print("\n3️⃣  Maximum reward (SOL)?")
+    print("\n4️⃣  Maximum reward (SOL)?")
     print("   Enter 0 for no maximum (unlimited)")
     max_reward = input("   > ").strip()
     config.max_reward = float(max_reward) if max_reward else 0.0
     
-    # 3. Training
-    print("\n4️⃣  Epochs per round?")
+    # 4. Training
+    print("\n5️⃣  Epochs per round?")
     epochs = input("   [1] > ").strip()
     config.epochs = int(epochs) if epochs else 1
     
-    print("\n5️⃣  Max parallel rounds?")
+    print("\n6️⃣  Max parallel rounds?")
     max_parallel = input("   [1] > ").strip()
     config.max_concurrent_rounds = int(max_parallel) if max_parallel else 1
     
-    # 4. IPFS
-    print("\n6️⃣  Setup IPFS (Pinata)?")
+    # 5. IPFS
+    print("\n7️⃣  Setup IPFS (Pinata)?")
     print("   Required for uploading gradients!")
     print("   [y/n]")
     if input("   > ").strip().lower() == 'y':
@@ -646,7 +660,6 @@ Examples:
         cmd_func(args)
     else:
         parser.print_help()
-
 
 if __name__ == "__main__":
     main()

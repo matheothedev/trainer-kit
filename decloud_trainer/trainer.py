@@ -329,6 +329,11 @@ const trainer = Keypair.fromSecretKey(bs58.decode("{self._private_key}"));
         if not self._private_key:
             raise RuntimeError("Not logged in")
         
+        # Получаем referrer из конфига
+        referrer_js = "null"
+        if self.config.referrer:
+            referrer_js = f'new PublicKey("{self.config.referrer}")'
+        
         idl_path = self.config.idl_path
         script = f'''
 const anchor = require("@coral-xyz/anchor");
@@ -340,6 +345,8 @@ const conn = new Connection("{self.config.rpc_url}", "confirmed");
 const programId = new PublicKey("{self.config.program_id}");
 const idl = JSON.parse(fs.readFileSync("{idl_path}"));
 const trainer = Keypair.fromSecretKey(bs58.decode("{self._private_key}"));
+
+const TREASURY = new PublicKey("FzuCxi65QyFXAGbHcXB28RXqyBZSZ5KXLQxeofx1P9K2");
 
 (async () => {{
     const wallet = new anchor.Wallet(trainer);
@@ -361,12 +368,16 @@ const trainer = Keypair.fromSecretKey(bs58.decode("{self._private_key}"));
         programId
     );
     
+    const referrer = {referrer_js};
+    
     const tx = await program.methods
         .claimReward(roundId)
         .accounts({{
             round: roundPda,
             submission: submissionPda,
             vault: vaultPda,
+            treasury: TREASURY,
+            referrer: referrer,
             trainer: trainer.publicKey,
             systemProgram: SystemProgram.programId,
         }})

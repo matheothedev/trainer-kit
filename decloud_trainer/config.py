@@ -156,6 +156,12 @@ class Config:
     # Accept any datasets?
     accept_any: bool = False
     
+    # Which datasets to ACCEPT (empty = all)
+    datasets: List[str] = field(default_factory=list)
+    
+    # Your LOCAL dataset to train on (None = same as creator requested)
+    train_dataset: Optional[str] = None
+    
     # Default training settings
     default_epochs: int = 1
     default_batch_size: int = 32
@@ -274,6 +280,11 @@ class Config:
         if self.max_reward > 0 and reward_sol > self.max_reward:
             return False
         
+        # Check global dataset filter
+        if self.datasets:
+            if dataset.lower() not in [d.lower() for d in self.datasets]:
+                return False
+        
         # Check rules
         if self.rules:
             rule = self.find_matching_rule(dataset, reward_lamports)
@@ -282,8 +293,8 @@ class Config:
             # If rules exist but nothing matched
             return self.accept_any
         
-        # No rules - accept all (or based on accept_any)
-        return self.accept_any or not self.rules
+        # No rules - accept based on dataset filter or accept_any
+        return True
     
     def get_training_config(self, creator_dataset: str, reward_lamports: int) -> dict:
         """Get training config for round"""
@@ -292,9 +303,9 @@ class Config:
         if rule:
             return rule.get_training_config(creator_dataset)
         
-        # Fallback defaults
+        # Fallback defaults - use global train_dataset if set
         return {
-            "dataset": creator_dataset,
+            "dataset": self.train_dataset or creator_dataset,
             "path": None,
             "epochs": self.default_epochs,
             "batch_size": self.default_batch_size,
