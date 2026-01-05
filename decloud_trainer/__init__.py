@@ -18,19 +18,52 @@ Usage:
     
     # Claim reward
     trainer.claim_reward(42)
+
+Custom Datasets:
+    from decloud_trainer.custom_data import CustomDataset, CustomImageFolder
+    
+    # From folder structure
+    dataset = CustomImageFolder("./my_images", input_size=224)
+    
+    # From tensors
+    dataset = CustomDataset(X_tensor, y_tensor)
+    
+    # From CSV
+    dataset = CustomDataset.from_csv("data.csv", target_column="label")
 """
 
 from .config import Config
 from .trainer import Trainer, RoundInfo
 from .ipfs import IPFSClient
-from .training import Trainer as LocalTrainer, SimpleCNN
+from .training import Trainer as LocalTrainer, SimpleCNN, detect_architecture
 
-__version__ = "0.1.0"
+# Custom dataset support
+from .custom_data import (
+    CustomDataset,
+    CustomImageFolder,
+    CustomTextDataset,
+    CustomAudioDataset,
+    CustomTimeSeriesDataset,
+    create_custom_config,
+    load_custom_dataset,
+)
+
+__version__ = "0.2.0"
 __all__ = [
+    # Core
     "Trainer",
     "Config",
     "RoundInfo",
     "IPFSClient",
     "LocalTrainer",
     "SimpleCNN",
+    "detect_architecture",
+    # Custom datasets
+    "CustomDataset",
+    "CustomImageFolder",
+    "CustomTextDataset",
+    "CustomAudioDataset",
+    "CustomTimeSeriesDataset",
+    "create_custom_config",
+    "load_custom_dataset",
 ]

@@ -329,8 +329,8 @@ const trainer = Keypair.fromSecretKey(bs58.decode("{self._private_key}"));
         if not self._private_key:
             raise RuntimeError("Not logged in")
         
-        # Получаем referrer из конфига
-        referrer_js = "null"
+        # Get referrer from config, default to TREASURY if not set
+        referrer_js = "TREASURY"
         if self.config.referrer:
             referrer_js = f'new PublicKey("{self.config.referrer}")'
         
