@@ -38,6 +38,7 @@ class RoundInfo:
     gradients_count: int
     total_validations: int
     total_improvement: int
+    consensus_accuracy: int
     bump: int
     vault_bump: int
 
@@ -193,7 +194,10 @@ class SolanaClient:
             
             total_improvement = struct.unpack("<Q", data[offset:offset+8])[0]
             offset += 8
-            
+
+            consensus_accuracy = struct.unpack("<Q", data[offset:offset+8])[0]
+            offset += 8    
+
             bump = data[offset]
             offset += 1
             
@@ -204,7 +208,8 @@ class SolanaClient:
                 dataset_id=dataset_id, reward_amount=reward_amount, created_at=created_at,
                 status=status, pre_count=pre_count, pre_accuracy_sum=pre_accuracy_sum,
                 gradients_count=gradients_count, total_validations=total_validations,
-                total_improvement=total_improvement, bump=bump, vault_bump=vault_bump,
+                total_improvement=total_improvement, consensus_accuracy=consensus_accuracy,
+                bump=bump, vault_bump=vault_bump,
             )
         except Exception:
             # Failed to parse - likely old/incompatible format
