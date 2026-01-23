@@ -94,6 +94,17 @@ class DeCloudTrainer:
             console.print(f"[dim]Round {round_id}: waiting for prevalidation[/dim]")
             return False
         
+        # Check trainer profile and rating
+        profile = self.solana.get_trainer_profile()
+        if not profile:
+            console.print(f"[red]Round {round_id}: no trainer profile! Run: decloud-trainer create-profile[/red]")
+            return False
+        
+        min_rating = round_info.min_trainer_rating
+        if profile.rating < min_rating:
+            console.print(f"[dim]Round {round_id}: your rating {profile.rating/100:.2f}★ < required {min_rating/100:.2f}★[/dim]")
+            return False
+        
         # Check if already submitted
         if self.solana.has_submitted_gradient(round_id):
             self.trained_rounds.add(round_id)
@@ -103,6 +114,7 @@ class DeCloudTrainer:
         console.print(f"\n[cyan]⚡ Training for Round #{round_id}[/cyan]")
         console.print(f"[dim]   Dataset: {round_info.dataset}[/dim]")
         console.print(f"[dim]   Reward: {reward_sol:.4f} SOL[/dim]")
+        console.print(f"[dim]   Min Rating: {min_rating/100:.2f}★ (you: {profile.rating/100:.2f}★)[/dim]")
         
         try:
             # Download base model from IPFS
@@ -326,6 +338,21 @@ class DeCloudTrainer:
         except Exception as e:
             return {"error": str(e)}
     
+    def create_profile(self) -> Dict[str, Any]:
+        """Create trainer profile"""
+        if self.solana.has_trainer_profile():
+            return {"error": "Profile already exists"}
+        
+        try:
+            tx = self.solana.create_trainer_profile()
+            return {"success": True, "tx": tx}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def get_profile(self):
+        """Get trainer profile"""
+        return self.solana.get_trainer_profile()
+    
     # ═══════════════════════════════════════════════════════════════
     # Status
     # ═══════════════════════════════════════════════════════════════
@@ -337,6 +364,8 @@ class DeCloudTrainer:
         except:
             balance = -1
         
+        profile = self.solana.get_trainer_profile()
+        
         table = Table(title="🏋️ Trainer Status")
         table.add_column("Property", style="cyan")
         table.add_column("Value", style="green")
@@ -345,6 +374,16 @@ class DeCloudTrainer:
         table.add_row("Balance", f"{balance:.4f} SOL" if balance >= 0 else "Error")
         table.add_row("Network", config.network)
         table.add_row("Device", self.device)
+        
+        # Profile info
+        if profile:
+            rating = profile.rating / 100
+            table.add_row("Rating", f"{rating:.2f} ★")
+            table.add_row("Submissions", f"{profile.successful_submissions}/{profile.total_submissions}")
+            table.add_row("Slashed", str(profile.slashed_count))
+        else:
+            table.add_row("Profile", "[red]Not created[/red]")
+        
         table.add_row("Min Reward", f"{config.min_reward} SOL")
         table.add_row("Datasets Configured", str(len(config.dataset_paths)))
         table.add_row("Rounds Trained", str(self.stats.rounds_trained))
@@ -352,6 +391,10 @@ class DeCloudTrainer:
         table.add_row("Pinata", "✓ Configured" if config.has_pinata() else "✗ Not configured")
         
         console.print(table)
+        
+        if not profile:
+            console.print("\n[yellow]⚠ No trainer profile! Create one:[/yellow]")
+            console.print("[dim]  decloud-trainer create-profile[/dim]")
         
         if config.dataset_paths:
             console.print("\n[cyan]Configured Datasets:[/cyan]")
@@ -361,22 +404,35 @@ class DeCloudTrainer:
     def show_rounds(self, limit: int = 10):
         """Display active rounds"""
         rounds = self.solana.get_active_rounds()
+        profile = self.solana.get_trainer_profile()
+        my_rating = profile.rating if profile else 0
         
         table = Table(title=f"Active Rounds ({len(rounds)} total)")
         table.add_column("ID", style="cyan")
         table.add_column("Dataset", style="yellow")
         table.add_column("Reward", style="green")
+        table.add_column("Min ★", style="magenta")
         table.add_column("Pre", style="blue")
-        table.add_column("Gradients", style="magenta")
-        table.add_column("Can Train", style="white")
+        table.add_column("Gradients", style="white")
+        table.add_column("Status", style="white")
         
         for round_info in rounds[:limit]:
             reward_sol = round_info.reward_amount / 1e9
-            can_train = config.can_train(round_info.dataset) and reward_sol >= config.min_reward
+            min_rating = round_info.min_trainer_rating / 100
+            
+            can_train = (
+                config.can_train(round_info.dataset) and 
+                reward_sol >= config.min_reward and
+                my_rating >= round_info.min_trainer_rating
+            )
             submitted = self.solana.has_submitted_gradient(round_info.id)
             
             if submitted:
                 status = "[green]✓ submitted[/green]"
+            elif not profile:
+                status = "[red]no profile[/red]"
+            elif my_rating < round_info.min_trainer_rating:
+                status = "[red]rating low[/red]"
             elif can_train:
                 status = "[yellow]⏳ ready[/yellow]"
             else:
@@ -386,9 +442,15 @@ class DeCloudTrainer:
                 str(round_info.id),
                 round_info.dataset,
                 f"{reward_sol:.4f}",
+                f"{min_rating:.2f}",
                 str(round_info.pre_count),
                 str(round_info.gradients_count),
                 status,
             )
         
         console.print(table)
+        
+        if profile:
+            console.print(f"\n[dim]Your rating: {my_rating/100:.2f} ★[/dim]")
+        else:
+            console.print(f"\n[yellow]⚠ Create profile first: decloud-trainer create-profile[/yellow]")

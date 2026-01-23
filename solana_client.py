@@ -31,6 +31,7 @@ class RoundInfo:
     dataset: str
     dataset_id: int
     reward_amount: int
+    min_trainer_rating: int  # NEW: minimum trainer rating (100-500)
     created_at: int
     status: str
     pre_count: int
@@ -53,20 +54,34 @@ class GradientInfo:
     post_accuracy_sum: int
     improvement: int
     reward_claimed: bool
+    rating_settled: bool  # NEW: whether rating has been updated
+
+
+@dataclass
+class TrainerProfile:
+    """Trainer profile information"""
+    trainer: str
+    rating: int  # 100-500 (1.00-5.00 stars)
+    total_submissions: int
+    successful_submissions: int
+    slashed_count: int
+    bump: int
 
 
 class SolanaClient:
     """Client for Decloud Solana program - Trainer operations"""
     
     DISCRIMINATORS = {
+        "create_trainer_profile": bytes([85, 197, 4, 146, 31, 196, 69, 89]),
         "submit_gradient": bytes([52, 174, 224, 247, 246, 136, 203, 99]),
         "claim_trainer": bytes([55, 24, 189, 180, 35, 249, 70, 75]),
     }
     
-    # Account discriminators for parsing validation
+    # Account discriminators for parsing
     ACCOUNT_DISCRIMINATORS = {
         "Round": bytes([87, 127, 165, 51, 73, 78, 116, 174]),
         "Gradient": bytes([173, 254, 210, 185, 231, 180, 152, 152]),
+        "TrainerProfile": bytes([237, 3, 45, 91, 25, 9, 143, 108]),
     }
     
     def __init__(self, keypair: Optional[Keypair] = None):
@@ -115,6 +130,12 @@ class SolanaClient:
     def get_gradient_pda(self, round_id: int, trainer: Pubkey) -> Tuple[Pubkey, int]:
         return Pubkey.find_program_address(
             [b"gradient", round_id.to_bytes(8, "little"), bytes(trainer)],
+            self.program_id
+        )
+    
+    def get_trainer_profile_pda(self, trainer: Pubkey) -> Tuple[Pubkey, int]:
+        return Pubkey.find_program_address(
+            [b"trainer_profile", bytes(trainer)],
             self.program_id
         )
     
@@ -172,6 +193,10 @@ class SolanaClient:
             reward_amount = struct.unpack("<Q", data[offset:offset+8])[0]
             offset += 8
             
+            # NEW: min_trainer_rating (u16)
+            min_trainer_rating = struct.unpack("<H", data[offset:offset+2])[0]
+            offset += 2
+            
             created_at = struct.unpack("<q", data[offset:offset+8])[0]
             offset += 8
             
@@ -205,7 +230,9 @@ class SolanaClient:
             
             return RoundInfo(
                 id=id, creator=creator, model_cid=model_cid, dataset=dataset,
-                dataset_id=dataset_id, reward_amount=reward_amount, created_at=created_at,
+                dataset_id=dataset_id, reward_amount=reward_amount,
+                min_trainer_rating=min_trainer_rating,
+                created_at=created_at,
                 status=status, pre_count=pre_count, pre_accuracy_sum=pre_accuracy_sum,
                 gradients_count=gradients_count, total_validations=total_validations,
                 total_improvement=total_improvement, consensus_accuracy=consensus_accuracy,
@@ -257,11 +284,16 @@ class SolanaClient:
             offset += 8
             
             reward_claimed = bool(data[offset])
+            offset += 1
+            
+            # NEW: rating_settled
+            rating_settled = bool(data[offset])
             
             return GradientInfo(
                 round_id=round_id, trainer=trainer, cid=cid,
                 post_count=post_count, post_accuracy_sum=post_accuracy_sum,
                 improvement=improvement, reward_claimed=reward_claimed,
+                rating_settled=rating_settled,
             )
         except Exception:
             # Failed to parse - likely old/incompatible format
@@ -323,11 +355,12 @@ class SolanaClient:
         raise Exception("Failed after 3 attempts")
     
     def submit_gradient(self, round_id: int, gradient_cid: str) -> str:
-        """Submit gradient for a round"""
+        """Submit gradient for a round. Requires trainer profile to exist."""
         if not self.keypair:
             raise ValueError("No keypair configured")
         
         round_pda, _ = self.get_round_pda(round_id)
+        trainer_profile_pda, _ = self.get_trainer_profile_pda(self.keypair.pubkey())
         gradient_pda, _ = self.get_gradient_pda(round_id, self.keypair.pubkey())
         
         # Build instruction data
@@ -341,6 +374,7 @@ class SolanaClient:
         
         accounts = [
             AccountMeta(round_pda, is_signer=False, is_writable=True),
+            AccountMeta(trainer_profile_pda, is_signer=False, is_writable=False),  # NEW
             AccountMeta(gradient_pda, is_signer=False, is_writable=True),
             AccountMeta(self.keypair.pubkey(), is_signer=True, is_writable=True),
             AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
@@ -356,6 +390,7 @@ class SolanaClient:
         
         round_pda, _ = self.get_round_pda(round_id)
         gradient_pda, _ = self.get_gradient_pda(round_id, self.keypair.pubkey())
+        trainer_profile_pda, _ = self.get_trainer_profile_pda(self.keypair.pubkey())
         vault_pda, _ = self.get_vault_pda(round_id)
         
         data = self.DISCRIMINATORS["claim_trainer"]
@@ -364,6 +399,7 @@ class SolanaClient:
         accounts = [
             AccountMeta(round_pda, is_signer=False, is_writable=False),
             AccountMeta(gradient_pda, is_signer=False, is_writable=True),
+            AccountMeta(trainer_profile_pda, is_signer=False, is_writable=True),  # NEW
             AccountMeta(vault_pda, is_signer=False, is_writable=True),
             AccountMeta(self.treasury, is_signer=False, is_writable=True),
             AccountMeta(self.keypair.pubkey(), is_signer=True, is_writable=True),
@@ -372,3 +408,78 @@ class SolanaClient:
         
         instruction = Instruction(self.program_id, data, accounts)
         return self._send_transaction(instruction)
+    
+    def create_trainer_profile(self) -> str:
+        """Create trainer profile (required before submitting gradients)"""
+        if not self.keypair:
+            raise ValueError("No keypair configured")
+        
+        trainer_profile_pda, _ = self.get_trainer_profile_pda(self.keypair.pubkey())
+        
+        data = self.DISCRIMINATORS["create_trainer_profile"]
+        
+        accounts = [
+            AccountMeta(trainer_profile_pda, is_signer=False, is_writable=True),
+            AccountMeta(self.keypair.pubkey(), is_signer=True, is_writable=True),
+            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+        ]
+        
+        instruction = Instruction(self.program_id, data, accounts)
+        return self._send_transaction(instruction)
+    
+    def get_trainer_profile(self, trainer: Optional[Pubkey] = None) -> Optional[TrainerProfile]:
+        """Get trainer profile"""
+        if trainer is None:
+            if not self.keypair:
+                return None
+            trainer = self.keypair.pubkey()
+        
+        pda, _ = self.get_trainer_profile_pda(trainer)
+        response = self.client.get_account_info(pda, commitment=Confirmed)
+        
+        if response.value is None:
+            return None
+        
+        data = bytes(response.value.data)
+        return self._parse_trainer_profile(data)
+    
+    def _parse_trainer_profile(self, data: bytes) -> Optional[TrainerProfile]:
+        """Parse trainer profile data"""
+        try:
+            discriminator = data[:8]
+            if discriminator != self.ACCOUNT_DISCRIMINATORS.get("TrainerProfile"):
+                return None
+            
+            offset = 8
+            
+            trainer = base58.b58encode(data[offset:offset+32]).decode()
+            offset += 32
+            
+            rating = struct.unpack("<H", data[offset:offset+2])[0]
+            offset += 2
+            
+            total_submissions = struct.unpack("<I", data[offset:offset+4])[0]
+            offset += 4
+            
+            successful_submissions = struct.unpack("<I", data[offset:offset+4])[0]
+            offset += 4
+            
+            slashed_count = struct.unpack("<H", data[offset:offset+2])[0]
+            offset += 2
+            
+            bump = data[offset]
+            
+            return TrainerProfile(
+                trainer=trainer,
+                rating=rating,
+                total_submissions=total_submissions,
+                successful_submissions=successful_submissions,
+                slashed_count=slashed_count,
+                bump=bump,
+            )
+        except Exception:
+            return None
+    
+    def has_trainer_profile(self) -> bool:
+        """Check if trainer profile exists"""
+        return self.get_trainer_profile() is not None

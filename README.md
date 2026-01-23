@@ -7,6 +7,7 @@ Train models and earn rewards on Solana federated learning network.
 - 🔐 Wallet + Pinata IPFS integration
 - 📡 WebSocket real-time round detection
 - 🏋️ Automatic training and submission
+- ⭐ Trainer rating system
 - 💰 Easy reward claiming
 - ⚙️ Configurable training parameters
 
@@ -39,7 +40,17 @@ Prompts for:
 - Pinata JWT or API keys
 - Training parameters
 
-### 2. Configure Datasets
+### 2. Create Trainer Profile
+
+```bash
+# Required before training - creates on-chain profile
+decloud-trainer create-profile
+
+# View your profile
+decloud-trainer profile
+```
+
+### 3. Configure Datasets
 
 ```bash
 # Set path for each dataset you want to train on
@@ -50,7 +61,7 @@ decloud-trainer dataset set Mnist /path/to/mnist_data
 decloud-trainer dataset list
 ```
 
-### 3. Start Training
+### 4. Start Training
 
 ```bash
 decloud-trainer start
@@ -66,6 +77,13 @@ decloud-trainer start
 | `status` | Show trainer status |
 | `balance` | Show wallet balance |
 | `network -n <net>` | Change network |
+
+### Profile Management
+
+| Command | Description |
+|---------|-------------|
+| `create-profile` | Create trainer profile (required) |
+| `profile` | Show your profile and rating |
 
 ### Dataset Configuration
 
@@ -101,6 +119,20 @@ decloud-trainer start
 |---------|-------------|
 | `claim <round_id>` | Claim reward |
 
+## Trainer Rating System
+
+New trainers start at **5.00 ★** rating.
+
+- If your training makes the model worse (post accuracy < pre accuracy), your rating is slashed by **0.01 ★**
+- Creators can set minimum rating requirements for their rounds
+- Maintain quality training to keep your rating high
+
+**Check if you can participate in a round:**
+```bash
+decloud-trainer info <round_id>
+# Shows min rating requirement vs your rating
+```
+
 ## Dataset Format
 
 Your local dataset should contain numpy arrays:
@@ -126,7 +158,7 @@ Alternative naming:
 
 1. WebSocket detects RoundCreated event
    ↓
-2. Check: reward >= min_reward? dataset configured?
+2. Check: reward >= min_reward? dataset configured? rating OK?
    ↓
 3. Download base model from IPFS
    ↓
@@ -140,7 +172,7 @@ Alternative naming:
    ↓
 8. Wait for validators + round finalization
    ↓
-9. Claim reward!
+9. Claim reward! (rating updated based on performance)
 ```
 
 ## Configuration
@@ -172,9 +204,11 @@ Config file: `~/.decloud-trainer/config.json`
 
 ## Tips
 
+- **Create profile first!** You can't submit gradients without a profile
 - Use GPU for faster training: `CUDA_VISIBLE_DEVICES=0`
 - Set higher `min_reward` to only train for profitable rounds
 - Keep embeddings small (~1000 test samples) for faster upload
+- Maintain quality training to preserve your rating
 
 ## License
 

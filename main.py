@@ -348,6 +348,61 @@ def show_balance():
 
 
 # ═══════════════════════════════════════════════════════════════
+# Profile Commands
+# ═══════════════════════════════════════════════════════════════
+
+@cli.command("create-profile")
+def create_profile():
+    """Create trainer profile (required for training)"""
+    trainer = get_trainer()
+    
+    if trainer.solana.has_trainer_profile():
+        console.print("[yellow]Profile already exists![/yellow]")
+        profile = trainer.get_profile()
+        if profile:
+            console.print(f"[dim]Rating: {profile.rating/100:.2f} ★[/dim]")
+        return
+    
+    console.print("[cyan]Creating trainer profile...[/cyan]")
+    result = trainer.create_profile()
+    
+    if result.get("success"):
+        console.print(f"[green]✓ Profile created![/green]")
+        console.print(f"[dim]TX: {result['tx']}[/dim]")
+        console.print(f"[dim]Initial rating: 5.00 ★[/dim]")
+    else:
+        console.print(f"[red]✗ {result.get('error')}[/red]")
+
+
+@cli.command("profile")
+def show_profile():
+    """Show your trainer profile"""
+    trainer = get_trainer()
+    profile = trainer.get_profile()
+    
+    if not profile:
+        console.print("[yellow]No profile found![/yellow]")
+        console.print("[dim]Run: decloud-trainer create-profile[/dim]")
+        return
+    
+    table = Table(title="🏋️ Trainer Profile")
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="green")
+    
+    table.add_row("Wallet", profile.trainer[:20] + "...")
+    table.add_row("Rating", f"{profile.rating/100:.2f} ★")
+    table.add_row("Total Submissions", str(profile.total_submissions))
+    table.add_row("Successful", str(profile.successful_submissions))
+    table.add_row("Slashed", str(profile.slashed_count))
+    
+    if profile.total_submissions > 0:
+        success_rate = profile.successful_submissions / profile.total_submissions * 100
+        table.add_row("Success Rate", f"{success_rate:.1f}%")
+    
+    console.print(table)
+
+
+# ═══════════════════════════════════════════════════════════════
 # Info
 # ═══════════════════════════════════════════════════════════════
 
@@ -362,12 +417,16 @@ def round_info(round_id):
         console.print(f"[red]Round {round_id} not found[/red]")
         return
     
+    profile = trainer.get_profile()
+    my_rating = profile.rating if profile else 0
+    
     table = Table(title=f"Round {round_id}")
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="white")
     
     table.add_row("Dataset", info.dataset)
     table.add_row("Reward", f"{info.reward_amount / 1e9:.4f} SOL")
+    table.add_row("Min Rating", f"{info.min_trainer_rating/100:.2f} ★")
     table.add_row("Status", info.status)
     table.add_row("Pre-validators", str(info.pre_count))
     table.add_row("Trainers", str(info.gradients_count))
@@ -378,6 +437,12 @@ def round_info(round_id):
     # Check our submission
     submitted = trainer.solana.has_submitted_gradient(round_id)
     console.print(f"\nYour status: {'[green]✓ Submitted[/green]' if submitted else '[dim]Not submitted[/dim]'}")
+    
+    if not submitted and profile:
+        if my_rating >= info.min_trainer_rating:
+            console.print(f"[green]✓ Your rating ({my_rating/100:.2f}★) meets requirement[/green]")
+        else:
+            console.print(f"[red]✗ Your rating ({my_rating/100:.2f}★) below required ({info.min_trainer_rating/100:.2f}★)[/red]")
 
 
 def main():
