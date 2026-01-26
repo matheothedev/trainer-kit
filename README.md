@@ -4,7 +4,7 @@ Train models and earn rewards on Solana federated learning network.
 
 ## Features
 
-- 🔐 Wallet + Pinata IPFS integration
+- 🔐 Wallet + Lighthouse IPFS integration
 - 📡 WebSocket real-time round detection
 - 🏋️ Automatic training and submission
 - ⭐ Trainer rating system
@@ -37,8 +37,9 @@ decloud-trainer setup
 Prompts for:
 - Solana wallet private key
 - Network (devnet/mainnet)
-- Pinata JWT or API keys
 - Training parameters
+
+Lighthouse Storage API key is created automatically from your Solana wallet.
 
 ### 2. Create Trainer Profile
 
@@ -166,7 +167,7 @@ Alternative naming:
    ↓
 5. Train head model (fine-tune)
    ↓
-6. Upload trained model to Pinata/IPFS
+6. Upload trained model to Lighthouse/IPFS
    ↓
 7. Submit gradient CID to blockchain
    ↓
@@ -183,7 +184,7 @@ Config file: `~/.decloud-trainer/config.json`
 {
   "private_key": "...",
   "network": "devnet",
-  "pinata_jwt": "...",
+  "lighthouse_api_key": "...",
   "min_reward": 0.01,
   "training_epochs": 5,
   "training_batch_size": 32,
@@ -195,12 +196,9 @@ Config file: `~/.decloud-trainer/config.json`
 }
 ```
 
-## Pinata Setup
+## Lighthouse Storage
 
-1. Go to https://app.pinata.cloud/keys
-2. Create new API key
-3. Copy JWT token
-4. Use in `decloud-trainer setup`
+Lighthouse API key is created automatically during setup using your Solana wallet for authentication. No separate account needed!
 
 ## Tips
 

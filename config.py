@@ -32,9 +32,9 @@ WS_ENDPOINTS = {
     "testnet": "wss://api.testnet.solana.com",
 }
 
-# IPFS Gateways for reading
+# IPFS Gateways for reading (Lighthouse primary)
 IPFS_GATEWAYS = [
-    "https://gateway.pinata.cloud/ipfs/",
+    "https://gateway.lighthouse.storage/ipfs/",
     "https://ipfs.io/ipfs/",
     "https://cloudflare-ipfs.com/ipfs/",
     "https://dweb.link/ipfs/",
@@ -76,11 +76,10 @@ class Config:
         # Wallet
         self.private_key: Optional[str] = None
         self.network: str = "mainnet"
+        self.custom_rpc: Optional[str] = None  # Custom RPC URL (overrides network default)
         
-        # Pinata
-        self.pinata_api_key: Optional[str] = None
-        self.pinata_secret_key: Optional[str] = None
-        self.pinata_jwt: Optional[str] = None  # Alternative to api_key + secret
+        # Lighthouse Storage (IPFS)
+        self.lighthouse_api_key: Optional[str] = None
         
         # Training settings
         self.min_reward: float = 0.01  # Minimum reward in SOL to participate
@@ -113,9 +112,8 @@ class Config:
                 data = json.load(f)
                 self.private_key = data.get("private_key")
                 self.network = data.get("network", "devnet")
-                self.pinata_api_key = data.get("pinata_api_key")
-                self.pinata_secret_key = data.get("pinata_secret_key")
-                self.pinata_jwt = data.get("pinata_jwt")
+                self.custom_rpc = data.get("custom_rpc")
+                self.lighthouse_api_key = data.get("lighthouse_api_key")
                 self.min_reward = data.get("min_reward", 0.01)
                 self.max_concurrent_training = data.get("max_concurrent_training", 1)
                 self.training_epochs = data.get("training_epochs", 5)
@@ -129,9 +127,8 @@ class Config:
         data = {
             "private_key": self.private_key,
             "network": self.network,
-            "pinata_api_key": self.pinata_api_key,
-            "pinata_secret_key": self.pinata_secret_key,
-            "pinata_jwt": self.pinata_jwt,
+            "custom_rpc": self.custom_rpc,
+            "lighthouse_api_key": self.lighthouse_api_key,
             "min_reward": self.min_reward,
             "max_concurrent_training": self.max_concurrent_training,
             "training_epochs": self.training_epochs,
@@ -145,15 +142,17 @@ class Config:
     
     @property
     def rpc_url(self) -> str:
+        if self.custom_rpc:
+            return self.custom_rpc
         return RPC_ENDPOINTS.get(self.network, RPC_ENDPOINTS["devnet"])
     
     @property
     def ws_url(self) -> str:
         return WS_ENDPOINTS.get(self.network, WS_ENDPOINTS["devnet"])
     
-    def has_pinata(self) -> bool:
-        """Check if Pinata is configured"""
-        return bool(self.pinata_jwt or (self.pinata_api_key and self.pinata_secret_key))
+    def has_lighthouse(self) -> bool:
+        """Check if Lighthouse is configured"""
+        return bool(self.lighthouse_api_key)
     
     def get_dataset_path(self, dataset_name: str) -> Optional[str]:
         """Get local path for dataset"""

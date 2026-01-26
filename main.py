@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Decloud Trainer CLI
 Train models and submit gradients for federated learning rounds
@@ -15,7 +14,7 @@ from rich.prompt import Prompt, Confirm
 
 from config import config, DATASETS
 from trainer import DeCloudTrainer
-from pinata_client import pinata_client
+from lighthouse_client import LighthouseClient, get_lighthouse_client, init_lighthouse_client
 
 console = Console()
 
@@ -72,35 +71,37 @@ def setup():
     network_choice = Prompt.ask("Network", choices=["1", "2", "3"], default="1")
     network = ["devnet", "mainnet", "testnet"][int(network_choice) - 1]
     
-    # Pinata
-    console.print("\n[yellow]Pinata API for IPFS uploads[/yellow]")
-    console.print("[dim]Get keys at: https://app.pinata.cloud/keys[/dim]")
+    # Create Lighthouse API key automatically from Solana private key
+    console.print("\n[yellow]Creating Lighthouse Storage API key...[/yellow]")
+    console.print("[dim]Using your Solana wallet for IPFS uploads[/dim]")
     
-    use_jwt = Confirm.ask("Use JWT token (recommended)?", default=True)
-    
-    if use_jwt:
-        pinata_jwt = getpass.getpass("Pinata JWT: ")
-        config.pinata_jwt = pinata_jwt if pinata_jwt else None
-    else:
-        api_key = Prompt.ask("Pinata API Key")
-        secret_key = getpass.getpass("Pinata Secret Key: ")
-        config.pinata_api_key = api_key if api_key else None
-        config.pinata_secret_key = secret_key if secret_key else None
+    lighthouse_api_key = None
+    try:
+        lighthouse_api_key = LighthouseClient.create_api_key_from_private_key(
+            private_key, 
+            key_name=f"decloud-trainer-{str(client.pubkey)[:8]}"
+        )
+        console.print(f"[green]✓ Lighthouse API key created![/green]")
+    except Exception as e:
+        console.print(f"[red]✗ Failed to create Lighthouse API key: {e}[/red]")
+        console.print("[dim]You can create it manually later[/dim]")
     
     # Save
     config.private_key = private_key
     config.network = network
+    config.lighthouse_api_key = lighthouse_api_key
     config.save()
     
     console.print(f"\n[green]✓ Configuration saved![/green]")
     
-    # Test Pinata
-    if config.has_pinata():
-        console.print("[dim]Testing Pinata connection...[/dim]")
-        if pinata_client.test_authentication_sync():
-            console.print("[green]✓ Pinata connected![/green]")
+    # Test Lighthouse
+    if config.has_lighthouse():
+        console.print("[dim]Testing Lighthouse connection...[/dim]")
+        lighthouse = init_lighthouse_client(config.lighthouse_api_key)
+        if lighthouse.test_authentication_sync():
+            console.print("[green]✓ Lighthouse Storage connected![/green]")
         else:
-            console.print("[red]✗ Pinata authentication failed[/red]")
+            console.print("[red]✗ Lighthouse authentication failed[/red]")
     
     # Training settings
     console.print("\n[yellow]Training settings (press Enter for defaults):[/yellow]")
@@ -131,6 +132,40 @@ def network(network):
         console.print(f"[green]✓ Network: {network}[/green]")
     else:
         console.print(f"Network: [cyan]{config.network}[/cyan]")
+        console.print(f"RPC: [dim]{config.rpc_url}[/dim]")
+
+
+@cli.group()
+def rpc():
+    """RPC endpoint configuration"""
+    pass
+
+
+@rpc.command("set")
+@click.argument("url")
+def rpc_set(url):
+    """Set custom RPC endpoint"""
+    config.custom_rpc = url
+    config.save()
+    console.print(f"[green]✓ Custom RPC set: {url}[/green]")
+
+
+@rpc.command("reset")
+def rpc_reset():
+    """Reset to default RPC (based on network)"""
+    config.custom_rpc = None
+    config.save()
+    console.print(f"[green]✓ Reset to default RPC[/green]")
+    console.print(f"[dim]Using: {config.rpc_url}[/dim]")
+
+
+@rpc.command("show")
+def rpc_show():
+    """Show current RPC endpoint"""
+    if config.custom_rpc:
+        console.print(f"Custom RPC: [cyan]{config.custom_rpc}[/cyan]")
+    else:
+        console.print(f"Default RPC ({config.network}): [cyan]{config.rpc_url}[/cyan]")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -276,8 +311,8 @@ def start():
         console.print("[dim]Run: decloud-trainer dataset set <n> <path>[/dim]")
         return
     
-    if not config.has_pinata():
-        console.print("\n[yellow]Pinata not configured![/yellow]")
+    if not config.has_lighthouse():
+        console.print("\n[yellow]Lighthouse not configured![/yellow]")
         console.print("[dim]Run: decloud-trainer setup[/dim]")
         return
     

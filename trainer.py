@@ -12,7 +12,7 @@ from rich.table import Table
 
 from config import config, GRADIENTS_DIR
 from ipfs_client import ipfs_client
-from pinata_client import pinata_client
+from lighthouse_client import init_lighthouse_client
 from solana_client import SolanaClient, RoundInfo
 from websocket_listener import DecloudWebSocket, RoundCreatedEvent, RoundFinalizedEvent
 from training import train_round, TrainingResult
@@ -145,12 +145,13 @@ class DeCloudTrainer:
             
             console.print(f"[green]✓ Training complete! Improvement: {result.improvement:+.2f}%[/green]")
             
-            # Upload to IPFS via Pinata
-            console.print(f"[dim]  Uploading gradient to IPFS...[/dim]")
-            gradient_cid = await pinata_client.upload_gradient_package(result.gradient_dir, round_id)
+            # Upload to IPFS via Lighthouse
+            console.print(f"[dim]  Uploading gradient to Lighthouse...[/dim]")
+            lighthouse = init_lighthouse_client(config.lighthouse_api_key)
+            gradient_cid = await lighthouse.upload_gradient_package(result.gradient_dir, round_id)
             
             if not gradient_cid:
-                console.print(f"[red]Failed to upload to IPFS[/red]")
+                console.print(f"[red]Failed to upload to Lighthouse[/red]")
                 return False
             
             console.print(f"[green]✓ Uploaded: {gradient_cid}[/green]")
@@ -272,8 +273,8 @@ class DeCloudTrainer:
             console.print("[dim]Run: decloud-trainer dataset set <name> <path>[/dim]")
             return
         
-        if not config.has_pinata():
-            console.print("\n[red]✗ Pinata not configured![/red]")
+        if not config.has_lighthouse():
+            console.print("\n[red]✗ Lighthouse not configured![/red]")
             console.print("[dim]Run: decloud-trainer setup[/dim]")
             return
         
@@ -388,7 +389,7 @@ class DeCloudTrainer:
         table.add_row("Datasets Configured", str(len(config.dataset_paths)))
         table.add_row("Rounds Trained", str(self.stats.rounds_trained))
         table.add_row("Avg Improvement", f"{self.stats.total_improvement / max(1, self.stats.rounds_trained):.2f}%")
-        table.add_row("Pinata", "✓ Configured" if config.has_pinata() else "✗ Not configured")
+        table.add_row("Lighthouse", "✓ Configured" if config.has_lighthouse() else "✗ Not configured")
         
         console.print(table)
         

@@ -10,7 +10,7 @@ setup(
         "main",
         "config",
         "ipfs_client",
-        "pinata_client",
+        "lighthouse_client",
         "solana_client",
         "websocket_listener",
         "model_loader",
@@ -29,6 +29,7 @@ setup(
         "click>=8.1.0",
         "rich>=13.0.0",
         "base58>=2.1.0",
+        "pynacl>=1.5.0",
     ],
     entry_points={
         "console_scripts": [
