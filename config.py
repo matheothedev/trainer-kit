@@ -91,6 +91,9 @@ class Config:
         # Dataset paths mapping: dataset_name -> local_path
         self.dataset_paths: Dict[str, str] = {}
         
+        # LLM support
+        self.allow_llm: bool = False
+
         # Auto mode
         self.auto_train: bool = True
         self.poll_interval: int = 30
@@ -120,6 +123,7 @@ class Config:
                 self.training_batch_size = data.get("training_batch_size", 32)
                 self.learning_rate = data.get("learning_rate", 0.001)
                 self.dataset_paths = data.get("dataset_paths", {})
+                self.allow_llm = data.get("allow_llm", False)
                 self.auto_train = data.get("auto_train", True)
     
     def save(self):
@@ -135,6 +139,7 @@ class Config:
             "training_batch_size": self.training_batch_size,
             "learning_rate": self.learning_rate,
             "dataset_paths": self.dataset_paths,
+            "allow_llm": self.allow_llm,
             "auto_train": self.auto_train,
         }
         with open(CONFIG_FILE, "w") as f:

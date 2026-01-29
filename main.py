@@ -63,14 +63,10 @@ def setup():
         console.print(f"[red]Invalid private key: {e}[/red]")
         return
     
-    # Network
-    console.print("\n[yellow]Select network:[/yellow]")
-    for i, net in enumerate(["devnet", "mainnet", "testnet"], 1):
-        console.print(f"  {i}. {net}")
-    
-    network_choice = Prompt.ask("Network", choices=["1", "2", "3"], default="1")
-    network = ["devnet", "mainnet", "testnet"][int(network_choice) - 1]
-    
+    # Network — always mainnet
+    network = "mainnet"
+    console.print(f"[green]✓ Network: {network}[/green]")
+
     # Create Lighthouse API key automatically from Solana private key
     console.print("\n[yellow]Creating Lighthouse Storage API key...[/yellow]")
     console.print("[dim]Using your Solana wallet for IPFS uploads[/dim]")
@@ -123,16 +119,10 @@ def setup():
 
 
 @cli.command()
-@click.option("--network", "-n", type=click.Choice(["devnet", "mainnet", "testnet"]))
-def network(network):
-    """Change or show network"""
-    if network:
-        config.network = network
-        config.save()
-        console.print(f"[green]✓ Network: {network}[/green]")
-    else:
-        console.print(f"Network: [cyan]{config.network}[/cyan]")
-        console.print(f"RPC: [dim]{config.rpc_url}[/dim]")
+def network():
+    """Show current network (always mainnet)"""
+    console.print(f"Network: [cyan]{config.network}[/cyan]")
+    console.print(f"RPC: [dim]{config.rpc_url}[/dim]")
 
 
 @cli.group()
@@ -166,6 +156,14 @@ def rpc_show():
         console.print(f"Custom RPC: [cyan]{config.custom_rpc}[/cyan]")
     else:
         console.print(f"Default RPC ({config.network}): [cyan]{config.rpc_url}[/cyan]")
+
+
+@cli.command("allow-llm")
+@click.option("--enable/--disable", default=None, help="No longer needed")
+def allow_llm(enable):
+    """LLM models now use the same flow as classification (no special flag needed)"""
+    console.print("[green]LLM models now use the same training flow as classification.[/green]")
+    console.print("[dim]No special flag needed. Just set up your dataset and train.[/dim]")
 
 
 # ═══════════════════════════════════════════════════════════════

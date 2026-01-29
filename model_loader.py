@@ -130,7 +130,7 @@ class ModelLoader:
             embeddings = embeddings_dict.get("embeddings")
         
         return ModelPackage(config, head, embeddings)
-    
+
     def create_head_from_config(self, config: Dict[str, Any]) -> DynamicHead:
         """Create a new head from config"""
         head_config = config.get("head", config)

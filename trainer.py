@@ -83,12 +83,6 @@ class DeCloudTrainer:
             console.print(f"[dim]Round {round_id}: reward {reward_sol:.4f} SOL < min {config.min_reward}[/dim]")
             return False
         
-        # Check if we have dataset
-        dataset_path = config.get_dataset_path(round_info.dataset)
-        if not dataset_path:
-            console.print(f"[dim]Round {round_id}: no local dataset for {round_info.dataset}[/dim]")
-            return False
-        
         # Check prevalidation exists
         if round_info.pre_count == 0:
             console.print(f"[dim]Round {round_id}: waiting for prevalidation[/dim]")
@@ -128,8 +122,14 @@ class DeCloudTrainer:
             import json
             with open(model_path / "config.json", "r") as f:
                 model_config = json.load(f)
-            
-            # Train
+
+            # All rounds (classification and LLM) use the same training flow:
+            # embeddings from IPFS + local labels
+            dataset_path = config.get_dataset_path(round_info.dataset)
+            if not dataset_path:
+                console.print(f"[dim]Round {round_id}: no local dataset for {round_info.dataset}[/dim]")
+                return False
+
             result = train_round(
                 round_id=round_id,
                 model_config=model_config,
@@ -192,11 +192,11 @@ class DeCloudTrainer:
         if reward_sol < config.min_reward:
             console.print(f"[dim]   ⏭ Skipping (reward too low)[/dim]")
             return
-        
+
         if not config.can_train(event.dataset):
-            console.print(f"[dim]   ⏭ Skipping (no local dataset)[/dim]")
+            console.print(f"[dim]   ⏭ Skipping (no local dataset for {event.dataset})[/dim]")
             return
-        
+
         # Queue for training (wait for prevalidation)
         await self.training_queue.put(event.round_id)
     
@@ -386,6 +386,7 @@ class DeCloudTrainer:
             table.add_row("Profile", "[red]Not created[/red]")
         
         table.add_row("Min Reward", f"{config.min_reward} SOL")
+        table.add_row("LLM Support", "Unified (same as classification)")
         table.add_row("Datasets Configured", str(len(config.dataset_paths)))
         table.add_row("Rounds Trained", str(self.stats.rounds_trained))
         table.add_row("Avg Improvement", f"{self.stats.total_improvement / max(1, self.stats.rounds_trained):.2f}%")
