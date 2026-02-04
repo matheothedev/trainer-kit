@@ -45,41 +45,79 @@ class IPFSClient:
         return None
     
     async def fetch_model_package(self, cid: str) -> Optional[Dict[str, bytes]]:
-        """Fetch complete model package"""
-        required_files = ["config.json", "head.safetensors"]
-        optional_files = ["embeddings.safetensors"]
-        
+        """
+        Fetch complete model package.
+        Auto-detects format:
+          - Classification: config.json + head.safetensors + embeddings.safetensors (optional)
+          - LLM Full: config.json + model.safetensors + tokenizer/*
+        """
         result = {}
-        
-        for filename in required_files:
-            data = await self.fetch_file(cid, filename)
-            if data is None:
+
+        # Always fetch config first
+        config_data = await self.fetch_file(cid, "config.json")
+        if config_data is None:
+            print("Failed to fetch config.json")
+            return None
+        result["config.json"] = config_data
+
+        # Check package type
+        config = json.loads(config_data.decode("utf-8"))
+        pkg_type = config.get("type", "classification")
+
+        if pkg_type == "llm_full":
+            # LLM package: model.safetensors + tokenizer/
+            model_data = await self.fetch_file(cid, "model.safetensors")
+            if model_data is None:
+                print("Failed to fetch model.safetensors")
                 return None
-            result[filename] = data
-        
-        for filename in optional_files:
-            data = await self.fetch_file(cid, filename)
-            if data:
-                result[filename] = data
-        
+            result["model.safetensors"] = model_data
+
+            # Fetch tokenizer files
+            tokenizer_files = [
+                "tokenizer/tokenizer_config.json",
+                "tokenizer/vocab.json",
+                "tokenizer/merges.txt",
+                "tokenizer/special_tokens_map.json",
+                "tokenizer/tokenizer.json",
+            ]
+            for tf in tokenizer_files:
+                tf_data = await self.fetch_file(cid, tf)
+                if tf_data:
+                    result[tf] = tf_data
+        else:
+            # Classification package: head.safetensors + embeddings (optional)
+            head_data = await self.fetch_file(cid, "head.safetensors")
+            if head_data is None:
+                print("Failed to fetch head.safetensors")
+                return None
+            result["head.safetensors"] = head_data
+
+            # embeddings.safetensors is optional
+            emb_data = await self.fetch_file(cid, "embeddings.safetensors")
+            if emb_data:
+                result["embeddings.safetensors"] = emb_data
+
         return result
-    
+
     async def download_model_package(self, cid: str) -> Optional[Path]:
         """Download and cache model package"""
         cache_path = self.cache_dir / cid
-        
+
         if cache_path.exists() and (cache_path / "config.json").exists():
             return cache_path
-        
+
         package = await self.fetch_model_package(cid)
         if package is None:
             return None
-        
+
         cache_path.mkdir(parents=True, exist_ok=True)
         for filename, data in package.items():
-            with open(cache_path / filename, "wb") as f:
+            file_path = cache_path / filename
+            # Create subdirectories if needed (e.g., tokenizer/)
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, "wb") as f:
                 f.write(data)
-        
+
         return cache_path
     
     def download_model_package_sync(self, cid: str) -> Optional[Path]:

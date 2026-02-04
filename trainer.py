@@ -123,19 +123,28 @@ class DeCloudTrainer:
             with open(model_path / "config.json", "r") as f:
                 model_config = json.load(f)
 
-            # All rounds (classification and LLM) use the same training flow:
-            # embeddings from IPFS + local labels
+            # Check model type
+            model_type = model_config.get("type", "classification")
+            is_llm = model_type == "llm_full"
+
+            if is_llm and not config.allow_llm:
+                console.print(f"[dim]Round {round_id}: LLM training disabled[/dim]")
+                return False
+
+            # Get local dataset path
             dataset_path = config.get_dataset_path(round_info.dataset)
             if not dataset_path:
                 console.print(f"[dim]Round {round_id}: no local dataset for {round_info.dataset}[/dim]")
                 return False
 
+            # Train based on model type
             result = train_round(
                 round_id=round_id,
                 model_config=model_config,
                 head_weights_path=model_path / "head.safetensors",
                 embeddings_path=model_path / "embeddings.safetensors",
                 dataset_path=dataset_path,
+                model_path=model_path,  # For LLM: full model path
             )
             
             if not result.success:

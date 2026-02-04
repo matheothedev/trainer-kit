@@ -64,6 +64,24 @@ DATASETS = {
     "Spider": 86, "Cora": 87, "Citeseer": 88, "Qm9": 89, "NslKdd": 90,
     "CreditCardFraud": 91, "Phishing": 92, "Movielens1m": 93, "Movielens100k": 94,
     "Xnli": 95, "AmazonReviewsMulti": 96, "Sberquad": 97,
+    # Reasoning & Logic
+    "Gsm8k": 98, "Arc": 99, "HellaSwag": 100, "WinoGrande": 101, "Piqa": 102,
+    # Knowledge & Factuality
+    "TruthfulQa": 103, "Mmlu": 104, "NaturalQuestions": 105, "OpenBookQa": 106,
+    # Code Generation
+    "CodeXGlue": 107, "Ds1000": 108,
+    # Translation
+    "Wmt14": 109, "Opus100": 110, "Flores": 111,
+    # Safety & Toxicity
+    "ToxiGen": 112, "RealToxicityPrompts": 113, "HateSpeech18": 114,
+    # Dialog
+    "MultiWoz": 115, "PersonaChat": 116, "DailyDialog": 117,
+    # Instruction Following
+    "AlpacaEval": 118, "Flan": 119, "SuperNaturalInstructions": 120,
+    # Multilingual
+    "PawsX": 121, "TydiQa": 122, "Xcopa": 123,
+    # Long Context
+    "Scrolls": 124, "Quality": 125, "NarrativeQa": 126,
 }
 
 DATASET_ID_TO_NAME = {v: k for k, v in DATASETS.items()}
@@ -92,7 +110,7 @@ class Config:
         self.dataset_paths: Dict[str, str] = {}
         
         # LLM support
-        self.allow_llm: bool = False
+        self.allow_llm: bool = True
 
         # Auto mode
         self.auto_train: bool = True
@@ -123,7 +141,7 @@ class Config:
                 self.training_batch_size = data.get("training_batch_size", 32)
                 self.learning_rate = data.get("learning_rate", 0.001)
                 self.dataset_paths = data.get("dataset_paths", {})
-                self.allow_llm = data.get("allow_llm", False)
+                self.allow_llm = data.get("allow_llm", True)
                 self.auto_train = data.get("auto_train", True)
     
     def save(self):
