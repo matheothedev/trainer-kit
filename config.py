@@ -112,6 +112,10 @@ class Config:
         # LLM support
         self.allow_llm: bool = True
 
+        # Privacy: noise added to weights before submission
+        self.noise_scale: float = 0.001  # 0.1% noise - small but protective
+        self.noise_enabled: bool = True
+
         # Auto mode
         self.auto_train: bool = True
         self.poll_interval: int = 30
@@ -143,6 +147,8 @@ class Config:
                 self.dataset_paths = data.get("dataset_paths", {})
                 self.allow_llm = data.get("allow_llm", True)
                 self.auto_train = data.get("auto_train", True)
+                self.noise_scale = data.get("noise_scale", 0.001)
+                self.noise_enabled = data.get("noise_enabled", True)
     
     def save(self):
         """Save config to file"""
@@ -159,6 +165,8 @@ class Config:
             "dataset_paths": self.dataset_paths,
             "allow_llm": self.allow_llm,
             "auto_train": self.auto_train,
+            "noise_scale": self.noise_scale,
+            "noise_enabled": self.noise_enabled,
         }
         with open(CONFIG_FILE, "w") as f:
             json.dump(data, f, indent=2)

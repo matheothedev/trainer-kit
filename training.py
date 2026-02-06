@@ -23,6 +23,65 @@ console = Console()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Privacy: Add noise to weights before submission
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def add_noise_to_weights(
+    state_dict: Dict[str, torch.Tensor],
+    noise_scale: float = 0.001,
+    noise_type: str = "gaussian",
+) -> Dict[str, torch.Tensor]:
+    """
+    Add small noise to model weights for privacy protection.
+
+    This implements a simple form of differential privacy by adding
+    random noise to weights before submission, making it harder
+    to reverse-engineer training data from gradients.
+
+    Args:
+        state_dict: Model state dict with weights
+        noise_scale: Standard deviation of noise relative to weight magnitude
+                    Default 0.001 (0.1%) - very small, won't affect model quality
+        noise_type: Type of noise - "gaussian" or "laplacian"
+
+    Returns:
+        New state dict with noisy weights
+    """
+    if noise_scale <= 0:
+        return state_dict
+
+    noisy_state_dict = {}
+
+    for key, tensor in state_dict.items():
+        if tensor.dtype in (torch.float32, torch.float16, torch.bfloat16):
+            # Calculate noise based on tensor statistics
+            std = tensor.float().std().item()
+            if std == 0:
+                std = 1.0
+
+            noise_magnitude = std * noise_scale
+
+            # Generate noise
+            if noise_type == "laplacian":
+                # Laplacian noise (better for differential privacy)
+                noise = torch.zeros_like(tensor).float()
+                noise = noise.exponential_() - noise.exponential_()
+                noise = noise * (noise_magnitude / np.sqrt(2))
+            else:
+                # Gaussian noise (default)
+                noise = torch.randn_like(tensor.float()) * noise_magnitude
+
+            # Add noise and convert back to original dtype
+            noisy_tensor = tensor.float() + noise
+            noisy_state_dict[key] = noisy_tensor.to(tensor.dtype)
+        else:
+            # Non-float tensors (like indices) - keep as-is
+            noisy_state_dict[key] = tensor
+
+    return noisy_state_dict
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # LLM Dataset Loader - Supports multiple formats
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -612,8 +671,12 @@ def train_classification_round(
         with open(gradient_dir / "config.json", "w") as f:
             json.dump(adapted_config, f, indent=2)
 
-        # Save trained weights
-        save_safetensors(trained_model.state_dict(), str(gradient_dir / "head.safetensors"))
+        # Save trained weights (with privacy noise if enabled)
+        state_dict = trained_model.state_dict()
+        if config.noise_enabled and config.noise_scale > 0:
+            console.print(f"[dim]  Adding privacy noise (scale={config.noise_scale})...[/dim]")
+            state_dict = add_noise_to_weights(state_dict, noise_scale=config.noise_scale)
+        save_safetensors(state_dict, str(gradient_dir / "head.safetensors"))
 
         return TrainingResult(
             success=True,
@@ -748,9 +811,15 @@ def train_llm_round(
         with open(gradient_dir / "config.json", "w") as f:
             json.dump(new_config, f, indent=2)
 
-        # Save trained model weights
+        # Save trained model weights (with privacy noise if enabled)
         console.print(f"[dim]  Saving trained model...[/dim]")
         state_dict = model.state_dict()
+
+        # Add privacy noise before conversion
+        if config.noise_enabled and config.noise_scale > 0:
+            console.print(f"[dim]  Adding privacy noise (scale={config.noise_scale})...[/dim]")
+            state_dict = add_noise_to_weights(state_dict, noise_scale=config.noise_scale)
+
         # Convert to fp16 for storage
         for key in state_dict:
             if state_dict[key].dtype == torch.float32:

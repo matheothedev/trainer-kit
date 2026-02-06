@@ -166,6 +166,39 @@ def allow_llm(enable):
     console.print("[dim]No special flag needed. Just set up your dataset and train.[/dim]")
 
 
+@cli.command("privacy-noise")
+@click.option("--enable/--disable", default=None, help="Enable or disable privacy noise")
+@click.option("--scale", type=float, help="Noise scale (e.g., 0.001 = 0.1%)")
+def privacy_noise(enable, scale):
+    """Configure privacy noise for weight submissions
+
+    Privacy noise adds small random perturbations to model weights
+    before uploading, making it harder to reverse-engineer training data.
+    """
+    if enable is not None:
+        config.noise_enabled = enable
+        config.save()
+        status = "enabled" if enable else "disabled"
+        console.print(f"[green]✓ Privacy noise {status}[/green]")
+
+    if scale is not None:
+        if scale < 0 or scale > 0.1:
+            console.print("[yellow]Warning: scale should be between 0 and 0.1 (0-10%)[/yellow]")
+        config.noise_scale = scale
+        config.save()
+        console.print(f"[green]✓ Noise scale set to {scale} ({scale*100:.2f}%)[/green]")
+
+    if enable is None and scale is None:
+        # Show current status
+        status = "✓ Enabled" if config.noise_enabled else "✗ Disabled"
+        console.print(f"Privacy noise: [cyan]{status}[/cyan]")
+        console.print(f"Noise scale: [cyan]{config.noise_scale} ({config.noise_scale*100:.2f}%)[/cyan]")
+        console.print("\n[dim]Usage:[/dim]")
+        console.print("[dim]  decloud-trainer privacy-noise --enable[/dim]")
+        console.print("[dim]  decloud-trainer privacy-noise --disable[/dim]")
+        console.print("[dim]  decloud-trainer privacy-noise --scale 0.002[/dim]")
+
+
 # ═══════════════════════════════════════════════════════════════
 # Dataset Configuration
 # ═══════════════════════════════════════════════════════════════
@@ -267,7 +300,8 @@ def settings_show():
     table.add_row("Batch Size", str(config.training_batch_size))
     table.add_row("Learning Rate", str(config.learning_rate))
     table.add_row("Max Concurrent", str(config.max_concurrent_training))
-    
+    table.add_row("Privacy Noise", f"{'✓ Enabled' if config.noise_enabled else '✗ Disabled'} (scale={config.noise_scale})")
+
     console.print(table)
 
 
@@ -282,6 +316,7 @@ def settings_set(key, value):
         "batch_size": ("training_batch_size", int),
         "lr": ("learning_rate", float),
         "learning_rate": ("learning_rate", float),
+        "noise_scale": ("noise_scale", float),
     }
     
     if key not in mapping:
